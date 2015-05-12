@@ -8,27 +8,27 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer. 
+ *    notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in
  *    the documentation and/or other materials provided with the
  *    distribution.
  *
- * This work was supported in part by funding from the Defense Advanced 
- * Research Projects Agency and the National Science Foundation of the 
+ * This work was supported in part by funding from the Defense Advanced
+ * Research Projects Agency and the National Science Foundation of the
  * United States of America, and the CMU Sphinx Speech Consortium.
  *
- * THIS SOFTWARE IS PROVIDED BY CARNEGIE MELLON UNIVERSITY ``AS IS'' AND 
- * ANY EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, 
+ * THIS SOFTWARE IS PROVIDED BY CARNEGIE MELLON UNIVERSITY ``AS IS'' AND
+ * ANY EXPRESSED OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
  * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
  * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL CARNEGIE MELLON UNIVERSITY
  * NOR ITS EMPLOYEES BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, 
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY 
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * ====================================================================
@@ -36,9 +36,9 @@
  */
 /*
  * cont_fileseg.c -- Read input file, filter silence regions, and segment into utterances.
- * 
+ *
  * HISTORY
- * 
+ *
  * $Log: cont_fileseg.c,v $
  * Revision 1.1.1.1  2006/05/23 18:45:02  dhuggins
  * re-importation
@@ -46,10 +46,10 @@
  * Revision 1.13  2005/06/30 00:28:46  rkm
  * Kept within-utterance silences in rawmode
  *
- * 
+ *
  * 28-Jun-2005	M K Ravishankar (rkm@cs.cmu.edu) at Carnegie Mellon University
  * 		Modified to use new state variables in cont_ad_t.
- * 
+ *
  * Revision 1.12  2005/05/31 15:54:38  rkm
  * *** empty log message ***
  *
@@ -58,7 +58,7 @@
  *
  * Revision 1.10  2005/05/13 23:28:43  egouvea
  * Changed null device to system dependent one: NUL for windows, /dev/null for everything else
- * 
+ *
  * $Log: cont_fileseg.c,v $
  * Revision 1.1.1.1  2006/05/23 18:45:02  dhuggins
  * re-importation
@@ -87,7 +87,7 @@
  * Revision 1.2  2004/06/23 20:32:08  rkm
  * Exposed several cont_ad config parameters
  *
- * 
+ *
  * 27-Jun-96	M K Ravishankar (rkm@cs.cmu.edu) at Carnegie Mellon University
  * 		Created.
  */
@@ -159,6 +159,7 @@ usagemsg(char *pgm)
     E_INFOCONT("\t[-speech-onset <speech-onset>] \\\n");
     E_INFOCONT("\t[-adapt-rate <adapt-rate>] \\\n");
     E_INFOCONT("\t[-max-adreadsize <ad_read_blksize>] \\\n");
+    E_INFOCONT("\t[-max-utterance-length <utterance-length>] \\\n");
     E_INFOCONT("\t[-c <copy-input-file>] \\\n");
     E_INFOCONT("\t[-r | -rawmode] \\\n");
     E_INFOCONT("\t-i <input-file>\n");
@@ -189,6 +190,7 @@ main(int32 argc, char **argv)
     int32 min_noise, max_noise;
     int32 delta_sil, delta_speech;
     int32 sil_onset, speech_onset;
+    int32 max_utterance_length;
     float32 orig_adapt_rate;
     float32 adapt_rate;
     int32 total_speech_samples;
@@ -206,6 +208,7 @@ main(int32 argc, char **argv)
     sil_onset = speech_onset = -1;
     adapt_rate = -1.0;
     max_ad_read_size = (int32) 0x7ffffff0;
+    max_utterance_length = NULL;
     debug = 0;
     infile = NULL;
     copyfile = NULL;
@@ -319,6 +322,15 @@ main(int32 argc, char **argv)
                 (sscanf(argv[i], "%d", &max_ad_read_size) != 1) ||
                 (max_ad_read_size < 1)) {
                 E_ERROR("Invalid -max-adreadsize argument\n");
+                usagemsg(argv[0]);
+            }
+        }
+        else if (strcmp(argv[i], "-max-utterance-length") == 0) {
+            i++;
+            if ((i == argc) ||
+                (sscanf(argv[i], "%d", &max_utterance_length) != 1) ||
+                (max_utterance_length < 1)) {
+                E_ERROR("Invalid -max-utterance-length argument\n");
                 usagemsg(argv[0]);
             }
         }
@@ -507,6 +519,36 @@ main(int32 argc, char **argv)
             assert(cont->state == CONT_AD_STATE_SPEECH);
 
             if (fp == NULL) {   /* Not in an utt; open a new output file */
+                if (writeseg)
+                    sprintf(segfile, "%08d.raw", uttid);
+                else
+                    strcpy(segfile, NULL_DEVICE);
+                if ((fp = fopen(segfile, "wb")) == NULL)
+                    E_FATAL_SYSTEM("Failed to open segmentation file '%s' for writing", segfile);
+
+                starttime = cont->read_ts - k;
+                uttlen = 0;
+            }
+
+            /* TODO: soft cut-off on quietest moment near this time */
+            if (!!max_utterance_length && (double) uttlen / (double) sps > max_utterance_length) {
+                /* end the utterance */
+                fclose(fp);
+                fp = NULL;
+
+                printf
+                    ("Utt %08d, st= %8.2fs, et= %8.2fs, seg= %7.2fs (#samp= %10d)\n",
+                     uttid, (double) starttime / (double) sps,
+                     (double) (starttime + uttlen) / (double) sps,
+                     (double) uttlen / (double) sps, uttlen);
+                fflush(stdout);
+
+                total_speech_samples += uttlen;
+                total_speech_sec += (double) uttlen / (double) sps;
+
+                uttid++;
+
+                /* open a new output file */
                 if (writeseg)
                     sprintf(segfile, "%08d.raw", uttid);
                 else

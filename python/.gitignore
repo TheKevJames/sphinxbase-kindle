@@ -1,0 +1,6 @@
+# Configured
+/Makefile.in
+filelist.txt
+pymod-build-stamp
+build/
+SphinxBase.egg-info/

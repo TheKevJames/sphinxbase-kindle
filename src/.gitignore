@@ -1,0 +1,23 @@
+# Binaries
+sphinx_adtools/sphinx_cont_adseg
+sphinx_adtools/sphinx_cont_fileseg
+sphinx_adtools/sphinx_pitch
+sphinx_cepview/sphinx_cepview
+sphinx_fe/sphinx_fe
+sphinx_jsgf2fsg/sphinx_jsgf2fsg
+sphinx_lmtools/sphinx_lm_convert
+sphinx_lmtools/sphinx_lm_eval
+
+# Configured
+/Makefile.in
+libsphinxad/Makefile.in
+libsphinxbase/fe/Makefile.in
+libsphinxbase/feat/Makefile.in
+libsphinxbase/lm/Makefile.in
+libsphinxbase/Makefile.in
+libsphinxbase/util/Makefile.in
+sphinx_adtools/Makefile.in
+sphinx_cepview/Makefile.in
+sphinx_fe/Makefile.in
+sphinx_jsgf2fsg/Makefile.in
+sphinx_lmtools/Makefile.in

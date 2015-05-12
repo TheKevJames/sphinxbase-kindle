@@ -1,0 +1,6 @@
+# Configured
+/Makefile.in
+config.h
+config.h.in
+sphinx_config.h
+sphinxbase/Makefile.in

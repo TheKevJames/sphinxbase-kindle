@@ -218,3 +218,7 @@ test/unit/test_util/test_fopen
 test/unit/test_util/test_heap
 test/unit/test_util/test_huff_code
 test/unit/test_util/test_readfile
+
+# make install
+python/SphinxBase.egg-info/
+python/filelist.txt

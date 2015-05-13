@@ -208,7 +208,7 @@ main(int32 argc, char **argv)
     sil_onset = speech_onset = -1;
     adapt_rate = -1.0;
     max_ad_read_size = (int32) 0x7ffffff0;
-    max_utterance_length = NULL;
+    max_utterance_length = 0;
     debug = 0;
     infile = NULL;
     copyfile = NULL;
